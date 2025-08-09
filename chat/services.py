@@ -30,31 +30,46 @@ class ChatService:
     async def get_medical_response(self, user_message, session_id):
         """Get chat response using simple OpenAI service"""
         try:
+            print(f"🔵 ChatService: Processing message: {user_message}")
+            
             # Get conversation history 
             conversation_history = await self.get_conversation_history(session_id)
             
+            # Debug: Check settings
+            print(f"🔍 ENABLE_OPENAI_INTEGRATION: {settings.ENABLE_OPENAI_INTEGRATION}")
+            print(f"🔍 openai_service exists: {self.openai_service is not None}")
+            
             # Use simple OpenAI service
             if settings.ENABLE_OPENAI_INTEGRATION and self.openai_service:
-                response_data = await self.openai_service.get_chat_response(
-                    user_message=user_message,
-                    conversation_history=conversation_history
-                )
-                
-                logger.info(f"✅ Got response from OpenAI: {response_data['type']}")
-                
-                # Return response for frontend
-                return {
-                    'message': response_data['response'],
-                    'gesture': response_data.get('gesture', 'professional'),
-                    'mood': response_data.get('mood', 'professional'),
-                    'urgency': response_data.get('urgency', 'low'),
-                    'type': response_data.get('type', 'ai_response')
-                }
+                print(f"🔵 ChatService: Using OpenAI integration")
+                try:
+                    response_data = await self.openai_service.get_chat_response(
+                        user_message=user_message,
+                        conversation_history=conversation_history
+                    )
+                    
+                    print(f"✅ ChatService: Got OpenAI response: {response_data.get('response', '')[:50]}...")
+                    
+                    # Return response for frontend
+                    return {
+                        'message': response_data['response'],
+                        'gesture': response_data.get('gesture', 'professional'),
+                        'mood': response_data.get('mood', 'professional'),
+                        'urgency': response_data.get('urgency', 'low'),
+                        'type': response_data.get('type', 'ai_response')
+                    }
+                except Exception as openai_error:
+                    print(f"❌ OpenAI Error: {openai_error}")
+                    return await self.get_fallback_response(user_message)
             else:
+                print(f"⚠️ ChatService: Using fallback response - OpenAI not available")
+                print(f"   - ENABLE_OPENAI_INTEGRATION: {settings.ENABLE_OPENAI_INTEGRATION}")
+                print(f"   - openai_service: {self.openai_service}")
                 # Fallback response
                 return await self.get_fallback_response(user_message)
                 
         except Exception as e:
+            print(f"❌ ChatService Exception: {e}")
             logger.error(f"❌ Error getting chat response: {e}")
             return {
                 'message': "I apologize, I'm experiencing technical difficulties. Please try again in a moment.",
@@ -122,19 +137,37 @@ class ChatService:
         return response.content[0].text
 
     async def get_fallback_response(self, user_message):
+        print(f"🟡 Using fallback response for: {user_message}")
+        
         responses = {
             "hello": "Hello! I'm Dr. AI, your virtual medical assistant. How can I help you today?",
             "pain": "I understand you're experiencing pain. Can you describe where the pain is located and how severe it is on a scale of 1-10?",
             "fever": "A fever can indicate various conditions. Have you taken your temperature? Any other symptoms like headache or body aches?",
+            "feverish": "I understand you're feeling feverish. This could be a sign of infection or illness. Have you taken your temperature? Any other symptoms like chills, headache, or body aches? If your fever is high (over 103°F/39.4°C) or you're experiencing severe symptoms, please seek immediate medical attention.",
             "appointment": "I can help provide general health information, but for specific medical concerns, I recommend scheduling an appointment with your healthcare provider.",
         }
         
         user_lower = user_message.lower()
         for keyword, response in responses.items():
             if keyword in user_lower:
-                return response
+                print(f"🟡 Fallback matched '{keyword}': {response[:30]}...")
+                return {
+                    'message': response,
+                    'gesture': 'professional',
+                    'mood': 'professional',
+                    'urgency': 'low',
+                    'type': 'fallback_response'
+                }
         
-        return "I'm here to help with your health questions. Could you please provide more details about your symptoms or concerns?"
+        fallback_msg = "I'm here to help with your health questions. Could you please provide more details about your symptoms or concerns?"
+        print(f"🟡 Using generic fallback: {fallback_msg[:30]}...")
+        return {
+            'message': fallback_msg,
+            'gesture': 'professional',
+            'mood': 'professional', 
+            'urgency': 'low',
+            'type': 'fallback_response'
+        }
 
     def build_medical_system_prompt(self, medical_context):
         return f"""You are Dr. AI, a compassionate and knowledgeable virtual medical assistant. 
@@ -179,51 +212,8 @@ class TTSService:
         logger.info("✅ TTSService initialized with simple OpenAI integration")
 
     async def text_to_speech(self, text, session_id=None, voice=None):
-        """Generate speech using simple OpenAI TTS"""
-        try:
-            import uuid
-            from django.conf import settings
-            
-            # Handle both string and dict inputs
-            if isinstance(text, dict):
-                text_content = text.get('response', '') or text.get('message', '') or str(text)
-            else:
-                text_content = str(text)
-            
-            if not text_content.strip():
-                logger.warning("Empty text provided for TTS")
-                return None
-            
-            # Try OpenAI TTS if available
-            if (settings.ENABLE_TEXT_TO_SPEECH and 
-                settings.OPENAI_API_KEY and 
-                settings.ENABLE_OPENAI_INTEGRATION and
-                self.openai_service):
-                
-                try:
-                    # Use simple OpenAI TTS
-                    audio_data = await self.openai_service.generate_speech(text_content)
-                    
-                    if audio_data:
-                        # Save audio data to file
-                        audio_filename = f"openai_tts_{uuid.uuid4().hex}.mp3"
-                        audio_path = os.path.join(settings.MEDIA_ROOT, 'audio', 'output', audio_filename)
-                        
-                        os.makedirs(os.path.dirname(audio_path), exist_ok=True)
-                        
-                        with open(audio_path, 'wb') as f:
-                            f.write(audio_data)
-                        
-                        logger.info(f"✅ Generated OpenAI TTS audio: {audio_filename}")
-                        return f"/media/audio/output/{audio_filename}"
-                    
-                except Exception as openai_error:
-                    logger.warning(f"❌ OpenAI TTS failed: {openai_error}")
-            
-            logger.info("🔊 Using browser TTS (no server-side audio generation)")
-            return None  # Let browser handle TTS
-            
-        except Exception as e:
-            logger.error(f"❌ TTS Error: {e}")
-            return None
+        """Generate speech - optimized for speed, fallback to browser TTS"""
+        # Return None immediately to use browser TTS for zero latency
+        # Server TTS can be added later if needed
+        return None
 

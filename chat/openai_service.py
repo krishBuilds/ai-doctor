@@ -34,10 +34,10 @@ class OpenAIService:
                 self.client = None
                 return
                 
-            # Simple initialization with just API key and proper timeout
+            # Clean initialization without deprecated parameters
             self.client = openai.OpenAI(
                 api_key=settings.OPENAI_API_KEY,
-                timeout=60.0  # Set explicit timeout
+                timeout=60.0
             )
             
             logger.info("OpenAI client initialized successfully with GPT-4o mini")
@@ -285,6 +285,9 @@ Be thorough but concise. Show genuine care for patient wellbeing."""
             Audio data as bytes
         """
         try:
+            if not self.client:
+                raise Exception("OpenAI client not initialized")
+                
             if not settings.ENABLE_TEXT_TO_SPEECH:
                 raise Exception("Text-to-speech is disabled")
             
@@ -293,6 +296,9 @@ Be thorough but concise. Show genuine care for patient wellbeing."""
                 text_content = text.get('response', '') or text.get('message', '') or str(text)
             else:
                 text_content = str(text)
+            
+            if not text_content.strip():
+                raise Exception("Empty text provided for TTS")
             
             voice = voice or settings.OPENAI_TTS_VOICE
             
@@ -303,15 +309,16 @@ Be thorough but concise. Show genuine care for patient wellbeing."""
                 logger.info("Returning cached TTS audio")
                 return cached_audio
             
-            # Generate speech
-            response = await asyncio.to_thread(
-                self.client.audio.speech.create,
-                model=settings.OPENAI_TTS_MODEL,
-                voice=voice,
-                input=text_content,
-                response_format="mp3"
-            )
+            # Generate speech synchronously to avoid async client wrapper issues
+            def create_speech():
+                return self.client.audio.speech.create(
+                    model=settings.OPENAI_TTS_MODEL,
+                    voice=voice,
+                    input=text_content,
+                    response_format="mp3"
+                )
             
+            response = await asyncio.to_thread(create_speech)
             audio_data = response.content
             
             # Cache the result
@@ -336,15 +343,20 @@ Be thorough but concise. Show genuine care for patient wellbeing."""
             Transcribed text
         """
         try:
+            if not self.client:
+                raise Exception("OpenAI client not initialized")
+                
             if not settings.ENABLE_SPEECH_TO_TEXT:
                 raise Exception("Speech-to-text is disabled")
             
-            transcript = await asyncio.to_thread(
-                self.client.audio.transcriptions.create,
-                model=settings.OPENAI_WHISPER_MODEL,
-                file=audio_file,
-                response_format="text"
-            )
+            def create_transcription():
+                return self.client.audio.transcriptions.create(
+                    model=settings.OPENAI_WHISPER_MODEL,
+                    file=audio_file,
+                    response_format="text"
+                )
+            
+            transcript = await asyncio.to_thread(create_transcription)
             
             logger.info(f"Transcribed audio, result length: {len(transcript)}")
             
@@ -357,7 +369,7 @@ Be thorough but concise. Show genuine care for patient wellbeing."""
     def close(self):
         """Clean up client resources"""
         try:
-            if hasattr(self.client, 'close'):
+            if self.client and hasattr(self.client, 'close'):
                 self.client.close()
         except Exception as e:
             logger.error(f"Error closing OpenAI client: {e}")

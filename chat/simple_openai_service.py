@@ -7,6 +7,7 @@ import os
 import openai
 import logging
 import json
+import asyncio
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -23,27 +24,57 @@ class SimpleOpenAIService:
         try:
             api_key = settings.OPENAI_API_KEY
             if not api_key:
+                print("[ERROR] OPENAI_API_KEY not found in .env file")
                 logger.warning("OPENAI_API_KEY not found in .env file")
                 return
             
-            self.client = openai.OpenAI(api_key=api_key)
+            print(f"[INFO] Initializing OpenAI client with API key: {api_key[:10]}...")
+            print(f"[INFO] OpenAI module version: {openai.__version__}")
+            logger.info(f"Initializing OpenAI client with API key: {api_key[:10]}...")
+            logger.info(f"OpenAI module version: {openai.__version__}")
+            
+            # Correct OpenAI client initialization for v1.10.0+
+            self.client = openai.OpenAI(
+                api_key=api_key,
+                timeout=60.0,
+                max_retries=2
+            )
+            print("[SUCCESS] OpenAI client initialized successfully")
             logger.info("✅ OpenAI client initialized successfully")
             
         except Exception as e:
+            print(f"[ERROR] Failed to initialize OpenAI client: {e}")
             logger.error(f"❌ Failed to initialize OpenAI client: {e}")
+            import traceback
+            traceback.print_exc()
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             self.client = None
     
     async def get_chat_response(self, user_message, conversation_history=None):
         """Get simple chat response from OpenAI"""
         try:
+            print(f"[INFO] OpenAI Service: Processing message: {user_message}")
             if not self.client:
+                print("[ERROR] OpenAI Service: Client not available, using fallback")
                 return self._get_fallback_response(user_message)
             
-            # Build messages
+            # Build messages with medical context
             messages = [
                 {
                     "role": "system", 
-                    "content": "You are a helpful AI assistant. Provide clear, concise, and helpful responses."
+                    "content": """You are Dr. AI, a compassionate virtual medical assistant. 
+
+Guidelines:
+- Provide helpful, accurate health information based on medical knowledge
+- Always recommend consulting healthcare professionals for serious concerns
+- Be empathetic and understanding in your responses
+- Ask clarifying questions when needed to better understand symptoms
+- Never provide specific diagnoses or prescriptions
+- Focus on general wellness, health education, and symptom guidance
+- Keep responses clear, structured, and easy to understand
+- If symptoms seem serious, emphasize seeking immediate medical attention
+
+Respond in a warm, professional manner as a caring doctor would. Structure your responses with clear points when giving health advice."""
                 }
             ]
             
@@ -60,6 +91,7 @@ class SimpleOpenAIService:
             messages.append({"role": "user", "content": user_message})
             
             # Make API call
+            print(f"[INFO] OpenAI Service: Making API call to {settings.OPENAI_MODEL}")
             response = self.client.chat.completions.create(
                 model=settings.OPENAI_MODEL,
                 messages=messages,
@@ -68,6 +100,7 @@ class SimpleOpenAIService:
             )
             
             response_text = response.choices[0].message.content
+            print(f"[SUCCESS] OpenAI Service: Got response (length: {len(response_text)}): {response_text[:100]}...")
             
             logger.info(f"✅ OpenAI response generated (length: {len(response_text)})")
             
@@ -80,6 +113,7 @@ class SimpleOpenAIService:
             }
             
         except Exception as e:
+            print(f"[ERROR] OpenAI API error: {e}")
             logger.error(f"❌ OpenAI API error: {e}")
             return self._get_fallback_response(user_message)
     
@@ -122,11 +156,15 @@ class SimpleOpenAIService:
             if not text_content.strip():
                 return None
             
-            response = self.client.audio.speech.create(
-                model=settings.OPENAI_TTS_MODEL,
-                voice=settings.OPENAI_TTS_VOICE,
-                input=text_content
-            )
+            # Use asyncio.to_thread to avoid async client wrapper issues
+            def create_speech():
+                return self.client.audio.speech.create(
+                    model=settings.OPENAI_TTS_MODEL,
+                    voice=settings.OPENAI_TTS_VOICE,
+                    input=text_content
+                )
+            
+            response = await asyncio.to_thread(create_speech)
             
             logger.info(f"✅ TTS audio generated for text length: {len(text_content)}")
             return response.content

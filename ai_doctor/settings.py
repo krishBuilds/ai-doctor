@@ -122,7 +122,7 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 # Using GPT-4o mini - cheapest and latest model with great performance
 OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')  # Cheapest GPT-4 class model
 OPENAI_TEMPERATURE = float(os.getenv('OPENAI_TEMPERATURE', '0.7'))
-OPENAI_MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', '500'))  # Reduced for cost
+OPENAI_MAX_TOKENS = int(os.getenv('OPENAI_MAX_TOKENS', '1000'))  # Increased for better medical responses
 
 # OpenAI Voice Models (TTS-1 is cheaper than TTS-1-HD)
 OPENAI_TTS_MODEL = os.getenv('OPENAI_TTS_MODEL', 'tts-1')  # Cheaper model
