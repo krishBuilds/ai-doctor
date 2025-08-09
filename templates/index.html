@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Assistant Pro - Virtual Assistant</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <!-- GSAP for animations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+</head>
+<body>
+    <!-- Professional Header -->
+    <header class="app-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo-icon">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="logo-text">
+                    <h1>AI Assistant Pro</h1>
+                    <span class="subtitle">Professional Virtual Assistant</span>
+                </div>
+            </div>
+            
+            <div class="header-status">
+                <div class="status-indicator online">
+                    <div class="status-dot"></div>
+                    <span>AI Assistant Online</span>
+                </div>
+                <div class="session-info">
+                    <i class="fas fa-clock"></i>
+                    <span id="session-time">00:00</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Application -->
+    <div id="app" class="professional-layout">
+        <!-- Left Panel - Avatar & Controls -->
+        <div class="left-panel">
+            <div id="avatar-container" class="professional-avatar">
+                <div class="avatar-header">
+                    <h3><i class="fas fa-user-tie"></i> AI Assistant</h3>
+                    <div class="avatar-status">
+                        <span class="status-badge active">Ready</span>
+                    </div>
+                </div>
+                
+                <canvas id="avatar-canvas"></canvas>
+                
+                <div id="avatar-controls" class="professional-controls">
+                    <button id="mic-btn" class="control-btn primary">
+                        <i class="fas fa-microphone"></i>
+                        <span class="btn-label">Voice</span>
+                    </button>
+                    
+                    <div class="gesture-dropdown">
+                        <button id="gesture-btn" class="control-btn secondary">
+                            <i class="fas fa-hand-paper"></i>
+                            <span class="btn-label">Gestures</span>
+                        </button>
+                        <div class="gesture-menu professional-menu">
+                            <div class="menu-header">Medical Gestures</div>
+                            <button class="gesture-option" data-gesture="welcome">
+                                <i class="fas fa-hand-wave"></i>
+                                <span>Welcome Patient</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="examine">
+                                <i class="fas fa-search"></i>
+                                <span>Physical Exam</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="prescribe">
+                                <i class="fas fa-prescription"></i>
+                                <span>Write Prescription</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="reassure">
+                                <i class="fas fa-heart"></i>
+                                <span>Reassure Patient</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="checkPulse">
+                                <i class="fas fa-heartbeat"></i>
+                                <span>Check Vital Signs</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="listen">
+                                <i class="fas fa-ear-listen"></i>
+                                <span>Active Listening</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="think">
+                                <i class="fas fa-brain"></i>
+                                <span>Analyzing</span>
+                            </button>
+                            <button class="gesture-option" data-gesture="nod">
+                                <i class="fas fa-check"></i>
+                                <span>Understanding</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="volume-container">
+                        <div id="volume-indicator" class="professional-volume"></div>
+                        <span class="volume-label">Audio Level</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Center Panel - Chat Interface -->
+        <div class="center-panel">
+            <div id="chat-container" class="professional-chat">
+                <div class="chat-header">
+                    <div class="chat-title">
+                        <i class="fas fa-comments-medical"></i>
+                        <h3>Medical Consultation</h3>
+                    </div>
+                    <div class="chat-actions">
+                        <button class="action-btn" id="clear-chat">
+                            <i class="fas fa-broom"></i>
+                        </button>
+                        <button class="action-btn" id="export-chat">
+                            <i class="fas fa-download"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="chat-messages" class="professional-messages"></div>
+                
+                <div id="chat-input-container" class="professional-input">
+                    <div class="input-wrapper">
+                        <input type="text" id="chat-input" placeholder="Describe your symptoms or ask a medical question...">
+                        <div class="input-actions">
+                            <button id="send-btn" class="send-button">
+                                <i class="fas fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-footer">
+                        <div class="typing-indicator" id="typing-indicator">
+                            <span>Dr. AI is analyzing...</span>
+                            <div class="typing-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Right Panel - Medical Context & Tools -->
+        <div class="right-panel">
+            <div id="medical-context-panel" class="professional-panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-user-injured"></i> Patient Information</h3>
+                    <button class="panel-toggle" aria-label="Toggle panel">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                </div>
+                
+                <div class="panel-content">
+                    <div class="context-field">
+                        <label><i class="fas fa-birthday-cake"></i> Age</label>
+                        <input type="number" id="patient-age" placeholder="Patient age" min="0" max="120">
+                    </div>
+                    
+                    <div class="context-field">
+                        <label><i class="fas fa-thermometer-half"></i> Current Symptoms</label>
+                        <textarea id="symptoms" placeholder="Describe current symptoms, pain level, duration..."></textarea>
+                    </div>
+                    
+                    <div class="context-field">
+                        <label><i class="fas fa-file-medical"></i> Medical History</label>
+                        <textarea id="medical-history" placeholder="Previous conditions, medications, allergies..."></textarea>
+                    </div>
+                    
+                    <div class="context-field">
+                        <label><i class="fas fa-exclamation-triangle"></i> Urgency Level</label>
+                        <select id="urgency-level">
+                            <option value="routine">Routine Consultation</option>
+                            <option value="urgent">Urgent - Needs Attention</option>
+                            <option value="emergency">Emergency - Seek Immediate Care</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Actions Panel -->
+            <div class="quick-actions-panel professional-panel">
+                <div class="panel-header">
+                    <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+                </div>
+                <div class="quick-actions-grid">
+                    <button class="quick-action" data-action="symptom-checker">
+                        <i class="fas fa-stethoscope"></i>
+                        <span>Symptom Checker</span>
+                    </button>
+                    <button class="quick-action" data-action="medication-info">
+                        <i class="fas fa-pills"></i>
+                        <span>Medication Info</span>
+                    </button>
+                    <button class="quick-action" data-action="first-aid">
+                        <i class="fas fa-first-aid"></i>
+                        <span>First Aid Guide</span>
+                    </button>
+                    <button class="quick-action" data-action="find-doctor">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <span>Find Doctor</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Professional Footer -->
+    <footer class="app-footer">
+        <div class="footer-content">
+            <div class="disclaimer">
+                <i class="fas fa-info-circle"></i>
+                <span>This AI assistant provides general medical information only. Always consult with a qualified healthcare professional for medical advice.</span>
+            </div>
+            <div class="footer-links">
+                <a href="#privacy">Privacy Policy</a>
+                <a href="#terms">Terms of Service</a>
+                <a href="#about">About MedAI Pro</a>
+            </div>
+        </div>
+    </footer>
+    
+    <audio id="tts-audio" autoplay></audio>
+    
+    <!-- Load TalkingHead first -->
+    <script src="/static/js/talking-head.js?v=ready-player-me-2025"></script>
+    <script src="/static/js/voice.js"></script>
+    <script src="/static/js/chat.js"></script>
+    <!-- HTTP fallback for chat -->
+    <script src="/static/js/chat-simple.js"></script>
+    <script src="/static/js/app.js"></script>
+    <!-- Test suite for development -->
+    <script src="/static/js/test-talkinghead.js"></script>
+</body>
+</html>
