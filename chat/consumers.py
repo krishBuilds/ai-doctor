@@ -49,40 +49,88 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     async def handle_chat_message(self, data):
         user_message = data['message']
-        print(f"[CONSUMER] Received: {user_message}")
+        print(f"[STREAMING] Received: {user_message}")
         
         try:
-            # Get AI response
-            ai_response_data = await self.chat_service.get_medical_response(
+            # Send stream start signal
+            await self.send(text_data=json.dumps({
+                'type': 'stream_start',
+                'sender': 'ai'
+            }))
+            
+            # Track the streaming response
+            full_response = ""
+            current_word_buffer = ""
+            
+            # Define callback for streaming chunks
+            async def stream_callback(chunk_text, is_final=False):
+                nonlocal full_response, current_word_buffer
+                
+                if chunk_text:  # Not final completion signal
+                    full_response += chunk_text
+                    current_word_buffer += chunk_text
+                    
+                    print(f"[STREAM] Chunk: {repr(chunk_text)}")
+                    
+                    # Send chunk for progressive display
+                    await self.send(text_data=json.dumps({
+                        'type': 'stream_chunk',
+                        'chunk': chunk_text,
+                        'sender': 'ai'
+                    }))
+                    
+                    # Check if we have complete words for TTS
+                    if ' ' in current_word_buffer or '.' in current_word_buffer or ',' in current_word_buffer:
+                        # Send accumulated words for TTS
+                        tts_text = current_word_buffer.strip()
+                        if tts_text:
+                            await self.send(text_data=json.dumps({
+                                'type': 'stream_tts',
+                                'text': tts_text,
+                                'sender': 'ai'
+                            }))
+                        current_word_buffer = ""
+                
+                elif is_final:  # Stream is complete
+                    # Send any remaining buffer for TTS
+                    if current_word_buffer.strip():
+                        await self.send(text_data=json.dumps({
+                            'type': 'stream_tts',
+                            'text': current_word_buffer.strip(),
+                            'sender': 'ai'
+                        }))
+                    
+                    print(f"[STREAM] Complete: {len(full_response)} chars")
+                    
+                    # Send stream end signal with complete response
+                    await self.send(text_data=json.dumps({
+                        'type': 'stream_end',
+                        'complete_message': full_response,
+                        'sender': 'ai',
+                        'gesture': 'professional',
+                        'mood': 'professional'
+                    }))
+            
+            # Get STREAMING AI response
+            ai_response_data = await self.chat_service.get_streaming_medical_response(
                 user_message, 
-                self.session_id
+                self.session_id,
+                stream_callback=stream_callback
             )
             
-            ai_message = ai_response_data.get('message', 'Sorry, I could not generate a response.')
-            print(f"[CONSUMER] Sending: {ai_message[:50]}...")
-            
-            # Send ONLY simple message - NO OTHER MESSAGE TYPES
-            await self.send(text_data=json.dumps({
-                'type': 'message',
-                'message': ai_message,
-                'sender': 'ai',
-                'gesture': 'professional',
-                'mood': 'professional',
-                'audio_url': None,
-                'gestures': []
-            }))
-            print(f"[SUCCESS] Direct message sent")
+            print(f"[STREAMING] Complete response length: {len(ai_response_data.get('message', ''))}")
             
         except Exception as e:
-            print(f"[ERROR] {e}")
+            print(f"[ERROR] Streaming error: {e}")
+            import traceback
+            traceback.print_exc()
+            
             await self.send(text_data=json.dumps({
                 'type': 'message',
                 'message': 'Sorry, I encountered an error. Please try again.',
                 'sender': 'ai',
                 'gesture': 'professional',
-                'mood': 'professional',
-                'audio_url': None,
-                'gestures': []
+                'mood': 'professional'
             }))
     
     async def handle_voice_input(self, data):

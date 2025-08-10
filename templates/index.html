@@ -131,7 +131,7 @@
                 
                 <div id="chat-input-container" class="professional-input">
                     <div class="input-wrapper">
-                        <input type="text" id="chat-input" placeholder="Describe your symptoms or ask a medical question...">
+                        <textarea id="chat-input" placeholder="Describe your symptoms or ask a medical question..." rows="1"></textarea>
                         <div class="input-actions">
                             <button id="send-btn" class="send-button">
                                 <i class="fas fa-paper-plane"></i>
@@ -234,10 +234,8 @@
     <!-- Load TalkingHead first -->
     <script src="/static/js/talking-head.js?v=ready-player-me-2025"></script>
     <script src="/static/js/voice.js?v=fixed-2025"></script>
-    <script src="/static/js/chat.js"></script>
-    <!-- HTTP fallback for chat -->
-    <script src="/static/js/chat-simple.js"></script>
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/chat.js?v=streaming-fixed-2025"></script>
+    <script src="/static/js/app.js?v=streaming-fixed-2025"></script>
     <!-- Test suite for development -->
     <script src="/static/js/test-talkinghead.js"></script>
 </body>

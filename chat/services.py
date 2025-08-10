@@ -28,27 +28,27 @@ class ChatService:
         logger.info("✅ ChatService initialized with simple OpenAI integration")
 
     async def get_medical_response(self, user_message, session_id):
-        """Get chat response using simple OpenAI service"""
+        """Get chat response using simple OpenAI service - NON-STREAMING"""
         try:
-            print(f"🔵 ChatService: Processing message: {user_message}")
+            print(f"[INFO] ChatService: Processing message: {user_message}")
             
             # Get conversation history 
             conversation_history = await self.get_conversation_history(session_id)
             
             # Debug: Check settings
-            print(f"🔍 ENABLE_OPENAI_INTEGRATION: {settings.ENABLE_OPENAI_INTEGRATION}")
-            print(f"🔍 openai_service exists: {self.openai_service is not None}")
+            print(f"[INFO] ENABLE_OPENAI_INTEGRATION: {settings.ENABLE_OPENAI_INTEGRATION}")
+            print(f"[INFO] openai_service exists: {self.openai_service is not None}")
             
             # Use simple OpenAI service
             if settings.ENABLE_OPENAI_INTEGRATION and self.openai_service:
-                print(f"🔵 ChatService: Using OpenAI integration")
+                print(f"[INFO] ChatService: Using OpenAI integration")
                 try:
                     response_data = await self.openai_service.get_chat_response(
                         user_message=user_message,
                         conversation_history=conversation_history
                     )
                     
-                    print(f"✅ ChatService: Got OpenAI response: {response_data.get('response', '')[:50]}...")
+                    print(f"[SUCCESS] ChatService: Got OpenAI response: {response_data.get('response', '')[:50]}...")
                     
                     # Return response for frontend
                     return {
@@ -59,18 +59,66 @@ class ChatService:
                         'type': response_data.get('type', 'ai_response')
                     }
                 except Exception as openai_error:
-                    print(f"❌ OpenAI Error: {openai_error}")
+                    print(f"[ERROR] OpenAI Error: {openai_error}")
                     return await self.get_fallback_response(user_message)
             else:
-                print(f"⚠️ ChatService: Using fallback response - OpenAI not available")
+                print(f"[WARN] ChatService: Using fallback response - OpenAI not available")
                 print(f"   - ENABLE_OPENAI_INTEGRATION: {settings.ENABLE_OPENAI_INTEGRATION}")
                 print(f"   - openai_service: {self.openai_service}")
                 # Fallback response
                 return await self.get_fallback_response(user_message)
                 
         except Exception as e:
-            print(f"❌ ChatService Exception: {e}")
+            print(f"[ERROR] ChatService Exception: {e}")
             logger.error(f"❌ Error getting chat response: {e}")
+            return {
+                'message': "I apologize, I'm experiencing technical difficulties. Please try again in a moment.",
+                'gesture': 'professional',
+                'mood': 'professional',
+                'urgency': 'low',
+                'type': 'error'
+            }
+
+    async def get_streaming_medical_response(self, user_message, session_id, stream_callback=None):
+        """Get STREAMING chat response using OpenAI with real-time callbacks"""
+        try:
+            print(f"[STREAM] ChatService: Starting streaming response for: {user_message}")
+            
+            # Get conversation history 
+            conversation_history = await self.get_conversation_history(session_id)
+            
+            # Use OpenAI streaming service
+            if settings.ENABLE_OPENAI_INTEGRATION and self.openai_service:
+                print(f"[STREAM] ChatService: Using OpenAI streaming integration")
+                try:
+                    response_data = await self.openai_service.get_streaming_chat_response(
+                        user_message=user_message,
+                        conversation_history=conversation_history,
+                        callback=stream_callback
+                    )
+                    
+                    print(f"[STREAM] ChatService: Streaming complete: {response_data.get('response', '')[:50]}...")
+                    
+                    # Return final response data
+                    return {
+                        'message': response_data['response'],
+                        'gesture': response_data.get('gesture', 'professional'),
+                        'mood': response_data.get('mood', 'professional'),
+                        'urgency': response_data.get('urgency', 'low'),
+                        'type': response_data.get('type', 'ai_stream_response')
+                    }
+                except Exception as openai_error:
+                    print(f"[ERROR] OpenAI Streaming Error: {openai_error}")
+                    # Fall back to regular response
+                    return await self.get_medical_response(user_message, session_id)
+            else:
+                print(f"[WARN] ChatService: OpenAI not available, using regular response")
+                # Fall back to regular response
+                return await self.get_medical_response(user_message, session_id)
+                
+        except Exception as e:
+            print(f"[ERROR] ChatService Streaming Exception: {e}")
+            logger.error(f"❌ Error getting streaming chat response: {e}")
             return {
                 'message': "I apologize, I'm experiencing technical difficulties. Please try again in a moment.",
                 'gesture': 'professional',

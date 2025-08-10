@@ -5,6 +5,7 @@ Reads API key from .env file and provides chat responses
 
 import os
 import openai
+from openai import AsyncOpenAI
 import logging
 import json
 import asyncio
@@ -17,6 +18,7 @@ class SimpleOpenAIService:
     
     def __init__(self):
         self.client = None
+        self.async_client = None
         self.initialize_client()
     
     def initialize_client(self):
@@ -33,14 +35,22 @@ class SimpleOpenAIService:
             logger.info(f"Initializing OpenAI client with API key: {api_key[:10]}...")
             logger.info(f"OpenAI module version: {openai.__version__}")
             
-            # Correct OpenAI client initialization for v1.10.0+
+            # Initialize both sync and async clients
             self.client = openai.OpenAI(
                 api_key=api_key,
                 timeout=60.0,
                 max_retries=2
             )
-            print("[SUCCESS] OpenAI client initialized successfully")
-            logger.info("✅ OpenAI client initialized successfully")
+            
+            # Initialize async client for streaming
+            self.async_client = AsyncOpenAI(
+                api_key=api_key,
+                timeout=60.0,
+                max_retries=2
+            )
+            
+            print("[SUCCESS] OpenAI clients initialized successfully (sync + async)")
+            logger.info("✅ OpenAI clients initialized successfully (sync + async)")
             
         except Exception as e:
             print(f"[ERROR] Failed to initialize OpenAI client: {e}")
@@ -49,9 +59,10 @@ class SimpleOpenAIService:
             traceback.print_exc()
             logger.error(f"Full traceback: {traceback.format_exc()}")
             self.client = None
+            self.async_client = None
     
     async def get_chat_response(self, user_message, conversation_history=None):
-        """Get simple chat response from OpenAI"""
+        """Get simple chat response from OpenAI - NON-STREAMING VERSION"""
         try:
             print(f"[INFO] OpenAI Service: Processing message: {user_message}")
             if not self.client:
@@ -116,6 +127,109 @@ Respond in a warm, professional manner as a caring doctor would. Structure your 
             print(f"[ERROR] OpenAI API error: {e}")
             logger.error(f"❌ OpenAI API error: {e}")
             return self._get_fallback_response(user_message)
+
+    async def get_streaming_chat_response(self, user_message, conversation_history=None, callback=None):
+        """Get STREAMING chat response from OpenAI with real-time callbacks"""
+        try:
+            print(f"[STREAM] OpenAI Service: Starting stream for: {user_message}")
+            if not self.async_client:
+                print("[ERROR] OpenAI Service: Async client not available for streaming")
+                # Fall back to regular response
+                regular_response = await self.get_chat_response(user_message, conversation_history)
+                if callback:
+                    await callback(regular_response.get('response', ''), is_final=True)
+                return regular_response
+            
+            # Build messages with medical context
+            messages = [
+                {
+                    "role": "system", 
+                    "content": """You are Dr. AI, a compassionate virtual medical assistant. 
+
+Guidelines:
+- Provide helpful, accurate health information based on medical knowledge
+- Always recommend consulting healthcare professionals for serious concerns
+- Be empathetic and understanding in your responses
+- Ask clarifying questions when needed to better understand symptoms
+- Never provide specific diagnoses or prescriptions
+- Focus on general wellness, health education, and symptom guidance
+- Keep responses clear, structured, and easy to understand
+- If symptoms seem serious, emphasize seeking immediate medical attention
+
+Respond in a warm, professional manner as a caring doctor would. Structure your responses with clear points when giving health advice."""
+                }
+            ]
+            
+            # Add conversation history if provided
+            if conversation_history:
+                for msg in conversation_history[-5:]:  # Last 5 messages
+                    if msg.get('role') in ['user', 'assistant']:
+                        messages.append({
+                            "role": msg['role'],
+                            "content": msg['content']
+                        })
+            
+            # Add current user message
+            messages.append({"role": "user", "content": user_message})
+            
+            # Make ASYNC STREAMING API call
+            print(f"[STREAM] OpenAI Service: Making ASYNC STREAMING API call to {settings.OPENAI_MODEL}")
+            
+            # Create the async streaming response
+            response_stream = await self.async_client.chat.completions.create(
+                model=settings.OPENAI_MODEL,
+                messages=messages,
+                temperature=settings.OPENAI_TEMPERATURE,
+                max_tokens=settings.OPENAI_MAX_TOKENS,
+                stream=True  # Enable streaming
+            )
+            
+            full_response = ""
+            chunk_count = 0
+            
+            # Process streaming chunks asynchronously
+            print(f"[STREAM] Starting to process async streaming chunks...")
+            
+            async for chunk in response_stream:
+                chunk_count += 1
+                
+                # Check if this chunk has content
+                if hasattr(chunk.choices[0], 'delta') and hasattr(chunk.choices[0].delta, 'content') and chunk.choices[0].delta.content is not None:
+                    chunk_text = chunk.choices[0].delta.content
+                    full_response += chunk_text
+                    
+                    print(f"[STREAM] Chunk {chunk_count}: {repr(chunk_text)}")
+                    
+                    # Send chunk to callback for real-time processing
+                    if callback:
+                        await callback(chunk_text, is_final=False)
+                
+                # Check if stream is finished
+                if hasattr(chunk.choices[0], 'finish_reason') and chunk.choices[0].finish_reason is not None:
+                    print(f"[STREAM] Stream finished. Reason: {chunk.choices[0].finish_reason}")
+                    break
+            
+            print(f"[STREAM] Processed {chunk_count} chunks total")
+            
+            # Send final completion signal
+            if callback:
+                await callback("", is_final=True)
+            
+            print(f"[STREAM] Complete response (length: {len(full_response)}): {full_response[:100]}...")
+            
+            return {
+                'response': full_response,
+                'gesture': 'professional',
+                'mood': 'professional',
+                'urgency': 'low',
+                'type': 'ai_stream_response'
+            }
+            
+        except Exception as e:
+            print(f"[ERROR] OpenAI Streaming error: {e}")
+            logger.error(f"❌ OpenAI Streaming error: {e}")
+            # Fall back to regular response
+            return await self.get_chat_response(user_message, conversation_history)
     
     def _get_fallback_response(self, user_message):
         """Simple fallback responses when OpenAI is unavailable"""
